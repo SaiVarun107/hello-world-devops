@@ -88,11 +88,11 @@ jobs:
 
       - name: Copy Kubernetes Files
         run: |
-          scp -o StrictHostKeyChecking=no -i private_key.pem -r k8s ubuntu@$EC2_IP:/home/ubuntu/
+          scp -o StrictHostKeyChecking=no -i private_key.pem deployment.yaml service.yaml ubuntu@$EC2_IP:/home/ubuntu/
 
       - name: Deploy to K3s
         run: |
           ssh -o StrictHostKeyChecking=no -i private_key.pem ubuntu@$EC2_IP << EOF
-            kubectl apply -f /home/ubuntu/k8s/deployment.yaml
-            kubectl apply -f /home/ubuntu/k8s/service.yaml
+            kubectl apply -f /home/ubuntu/deployment.yaml
+            kubectl apply -f /home/ubuntu/service.yaml
           EOF

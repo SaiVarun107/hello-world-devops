@@ -7,18 +7,18 @@ on:
 
 jobs:
 
-  terraform:
+  deploy-all:
 
     runs-on: ubuntu-latest
-
-    defaults:
-      run:
-        working-directory: terraform
 
     steps:
 
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      #################################################
+      # AWS LOGIN
+      #################################################
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -27,34 +27,33 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-south-1
 
+      #################################################
+      # TERRAFORM
+      #################################################
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
+        working-directory: terraform
         run: terraform init
 
       - name: Terraform Apply
+        working-directory: terraform
         run: terraform apply -auto-approve
 
-      - name: Save Terraform Output
-        run: terraform output -raw public_ip > public_ip.txt
+      #################################################
+      # GET EC2 IP
+      #################################################
 
-      - name: Upload Public IP
-        uses: actions/upload-artifact@v4
-        with:
-          name: public-ip
-          path: terraform/public_ip.txt
+      - name: Get EC2 Public IP
+        working-directory: terraform
+        run: |
+          echo "EC2_IP=$(terraform output -raw public_ip)" >> $GITHUB_ENV
 
-  docker:
-
-    needs: terraform
-
-    runs-on: ubuntu-latest
-
-    steps:
-
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      #################################################
+      # DOCKER BUILD
+      #################################################
 
       - name: DockerHub Login
         uses: docker/login-action@v3
@@ -70,41 +69,37 @@ jobs:
         run: |
           docker push glacierknight/hello-world-devops:latest
 
-  deploy:
-
-    needs: docker
-
-    runs-on: ubuntu-latest
-
-    defaults:
-      run:
-        working-directory: k8s
-
-    steps:
-
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Download Public IP
-        uses: actions/download-artifact@v4
-        with:
-          name: public-ip
-
-      - name: Set EC2 IP
-        run: |
-          echo "EC2_IP=$(cat public_ip.txt)" >> $GITHUB_ENV
+      #################################################
+      # SSH KEY
+      #################################################
 
       - name: Create SSH Key
         run: |
           echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > private_key.pem
           chmod 400 private_key.pem
 
+      #################################################
+      # WAIT FOR EC2
+      #################################################
+
+      - name: Wait for EC2 Initialization
+        run: sleep 120
+
+      #################################################
+      # COPY K8S FILES
+      #################################################
+
       - name: Copy Kubernetes Files
         run: |
           scp -o StrictHostKeyChecking=no \
           -i private_key.pem \
-          deployment.yaml service.yaml \
+          k8s/deployment.yaml \
+          k8s/service.yaml \
           ubuntu@$EC2_IP:/home/ubuntu/
+
+      #################################################
+      # DEPLOY TO K3S
+      #################################################
 
       - name: Deploy to K3s
         run: |

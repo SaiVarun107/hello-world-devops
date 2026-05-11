@@ -1,5 +1,5 @@
 resource "aws_security_group" "devops_sg" {
-  name = "devops-security-group"
+  name_prefix = "hello-world-devops-"
 
   ingress {
     from_port   = 22

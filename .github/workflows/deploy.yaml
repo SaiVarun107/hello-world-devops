@@ -8,6 +8,7 @@ on:
 jobs:
 
   terraform:
+
     runs-on: ubuntu-latest
 
     defaults:
@@ -34,6 +35,15 @@ jobs:
 
       - name: Terraform Apply
         run: terraform apply -auto-approve
+
+      - name: Save Terraform Output
+        run: terraform output -raw public_ip > public_ip.txt
+
+      - name: Upload Public IP
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-ip
+          path: terraform/public_ip.txt
 
   docker:
 
@@ -75,11 +85,14 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Get EC2 Public IP
-        id: terraform_output
-        working-directory: terraform
+      - name: Download Public IP
+        uses: actions/download-artifact@v4
+        with:
+          name: public-ip
+
+      - name: Set EC2 IP
         run: |
-          echo "EC2_IP=$(terraform output -raw public_ip)" >> $GITHUB_ENV
+          echo "EC2_IP=$(cat public_ip.txt)" >> $GITHUB_ENV
 
       - name: Create SSH Key
         run: |
@@ -88,11 +101,23 @@ jobs:
 
       - name: Copy Kubernetes Files
         run: |
-          scp -o StrictHostKeyChecking=no -i private_key.pem deployment.yaml service.yaml ubuntu@$EC2_IP:/home/ubuntu/
+          scp -o StrictHostKeyChecking=no \
+          -i private_key.pem \
+          deployment.yaml service.yaml \
+          ubuntu@$EC2_IP:/home/ubuntu/
 
       - name: Deploy to K3s
         run: |
-          ssh -o StrictHostKeyChecking=no -i private_key.pem ubuntu@$EC2_IP << EOF
+          ssh -o StrictHostKeyChecking=no \
+          -i private_key.pem \
+          ubuntu@$EC2_IP << EOF
+
             kubectl apply -f /home/ubuntu/deployment.yaml
+
             kubectl apply -f /home/ubuntu/service.yaml
+
+            kubectl get pods
+
+            kubectl get svc
+
           EOF

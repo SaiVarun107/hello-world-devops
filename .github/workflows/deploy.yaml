@@ -16,9 +16,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      #################################################
       # AWS LOGIN
-      #################################################
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -27,9 +25,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-south-1
 
-      #################################################
       # TERRAFORM
-      #################################################
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -42,18 +38,14 @@ jobs:
         working-directory: terraform
         run: terraform apply -auto-approve
 
-      #################################################
       # GET EC2 IP
-      #################################################
-
+      
       - name: Get EC2 Public IP
         working-directory: terraform
         run: |
           echo "EC2_IP=$(terraform output -raw public_ip)" >> $GITHUB_ENV
 
-      #################################################
       # DOCKER BUILD
-      #################################################
 
       - name: DockerHub Login
         uses: docker/login-action@v3
@@ -69,25 +61,19 @@ jobs:
         run: |
           docker push glacierknight/hello-world-devops:latest
 
-      #################################################
       # SSH KEY
-      #################################################
 
       - name: Create SSH Key
         run: |
           echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > private_key.pem
           chmod 400 private_key.pem
 
-      #################################################
       # WAIT FOR EC2
-      #################################################
 
       - name: Wait for EC2 Initialization
         run: sleep 120
 
-      #################################################
       # COPY K8S FILES
-      #################################################
 
       - name: Copy Kubernetes Files
         run: |
@@ -97,9 +83,7 @@ jobs:
           k8s/service.yaml \
           ubuntu@$EC2_IP:/home/ubuntu/
 
-      #################################################
       # DEPLOY TO K3S
-      #################################################
 
       - name: Deploy to K3s
         run: |
